@@ -1,23 +1,43 @@
-mod structs;
-mod http;
 mod parsing;
-mod services;
-mod handle_services;
+mod http;
 
-use parsing::*;
-use services::run_service;
-use handle_services::*;
+mod structs;
+
+use std::{thread, sync::{Mutex, Arc}, io::{stdin, prelude::*}};
+
+use parsing::parse_config;
+use http::run_async_server;
 
 fn main() {
-    let (mut tree, services) = parse_config("setup.json".to_string()).unwrap();
-    println!("{:?}", services);
-    println!("{:?}", tree);
-    for (_, service) in services.to_owned() {
-        run_service(service);
+    let file_name = "setup.json".to_string();
+    let (tree, global) = match parse_config(file_name.clone()) {
+        Ok((tree, global)) => (
+            Arc::new(Mutex::new(tree)),
+            Arc::new(Mutex::new(global))
+            ),
+        Err(err) => panic!("{}", err)
+    };
+    {
+        let tree = Arc::clone(&tree);
+        let global = Arc::clone(&global);
+        thread::spawn(move || {
+            run_async_server(global, tree);
+        });
     }
-    if let Some(ref root_component) = tree.value {
-        if let Some(ref exposed_component) = root_component.exposed {
-            start_endpoint_server(exposed_component.host.to_owned(), exposed_component.port.to_string().parse::<u16>().unwrap(), &mut tree, services);
+    loop {
+        let stdobj = stdin();
+        for line in stdobj.lock().lines() {
+            let line = line.unwrap();
+            if line.starts_with("restart") {
+                match parse_config(file_name.clone()) {
+                    Ok((t, g)) => {
+                        *tree.lock().unwrap() = t;
+                        *global.lock().unwrap() = g;
+                    },
+                    Err(err) => panic!("{}", err)
+                };
+                println!("Restarted ✔");
+            }
         }
     }
 }

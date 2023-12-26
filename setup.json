@@ -1,59 +1,24 @@
 {
     "$schema": "./setup.schema.json",
-    "type": "endpoint",
     "exposed": {
-        "host": "0.0.0.0",
         "port": 8080
     },
     "services": [
         {
             "name": "service_a",
-            "port": 8081,
-            "server": "self",
-            "set": {},
-            "use": [
-                "url",
-                "headers",
-                "body"
-            ]
-        },
-        {
-            "name": "service_b",
-            "port": 8082,
-            "server": "self",
-            "set": {},
-            "use": [
-                "headers"
-            ]
+            "port": 8081
         }
     ],
-    "requests": [
+    "requests": [ 
         {
-            "type": "proxy",
-            "service": "service_a",
-            "uri": "/service/abc"
+            "type":"static",
+            "path":"static",
+            "uri":"/static/"
         },
         {
-            "type": "chain",
-            "uri": "/service/chain",
-            "place": [
-                {
-                    "from": {
-                        "header": "Hiii"
-                    },
-                    "into": {
-                        "header": "New_hi"
-                    }
-                }
-            ],
-            "from": {
-                "type": "proxy",
-                "service": "service_a"
-            },
-            "into": {
-                "type": "proxy",
-                "service": "service_b"
-            }
+            "type":"proxy",
+            "uri": "/proxy/",
+            "service": "service_a"
         }
     ]
 }

@@ -16,8 +16,6 @@ features = [
 [dependencies]
 regex = "1.5"
 serde = { version = "1", features = ["derive"] }
-tokio = { version = "1", features = ["full"] }
-hyper = { version = "0.14", features = ["full"] }
 serde_json = {version="1.0.99"}
 
 [[bin]]

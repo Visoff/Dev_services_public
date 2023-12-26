@@ -1,4 +1,4 @@
-use std::{collections::HashMap, net::{TcpStream, self}, io::{Write, BufReader, BufRead}, thread};
+use std::{collections::HashMap, net::{TcpStream, self}, io::{Write, BufReader, BufRead}, thread, fs};
 
 use crate::{structs::*, http::*};
 
@@ -167,12 +167,21 @@ pub fn handle_component_request(services:HashMap<String, Service>, component: &C
         }
         let new_body = serde_json::to_string(&new_body).unwrap();
         return handle_component_request(services, &chain_component.to, method, remained_uri, new_headers, new_body, stores);
+    } else if let Some(static_component) = &component.static_dir {
+        let file: String = match fs::read_to_string(static_component.path.clone() + &remained_uri) {
+            Ok(file) => file,
+            Err(_) => match fs::read_to_string(static_component.path.clone()+&remained_uri + "/index.html") {
+                Ok(file) => file,
+                Err(_) => return build_response(404, "Not Found".to_string(), HashMap::new(), "<h1>Page Not Found</h1>".to_string())
+            }
+        };
+        return build_response(200, "OK".to_string(), HashMap::new(), file);
     } else {
         return String::new();
     }
 }
 
-pub fn start_endpoint_server(host:String, port:u16, tree:&mut Node, services:HashMap<String, Service>) {
+pub fn start_endpoint_server(host:String, port:u16, tree:&Node, services:HashMap<String, Service>) {
     let http = net::TcpListener::bind(host+":"+&port.to_string());
     let http = match http {
         Ok(http) => http,

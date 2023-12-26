@@ -1,117 +1,45 @@
 {
     "type":"object",
-    "oneOf": [
-        {
-            "properties": {
-                "type":{"const":"endpoint"},
-                "services":{
-                    "type":"array",
-                    "items": {"$ref": "#/definitions/service"}
-                },
-                "requests":{
-                    "type":"array",
-                    "items": {"$ref": "#"}
-                },
-                "exposed":{
-                    "type":"object",
-                    "properties": {
-                        "port":{"type":"number"},
-                        "host":{"type":"string"}
-                    },
-                    "required": ["port", "host"],
-                    "additionalProperties": false
+    "properties":{
+        "exposed":{
+            "type":"object",
+            "properties":{
+                "port":{"type": "number"},
+                "host":{"type": "string"}
+            }
+        },
+        "services": {
+            "type":"array",
+            "items": {
+                "type":"object",
+                "properties":{
+                    "host":{"type":"string"},
+                    "port":{"type":"number"}
                 }
-            },
-            "required": ["type", "requests", "exposed"]
+            }
         },
-        {
-            "type":"object",
-            "properties": {
-                "type":{"const":"proxy"},
-                "service":{
-                    "oneOf":
-                    [
-                        {"$ref":"#/definitions/service"},
-                        {"type":"string"}
-                    ]
-                },
-                "uri":{"type":"string"}
-            },
-            "required": ["type", "service"],
-            "additionalProperties": false
-        },
-        {
-            "type":"object",
-            "properties": {
-                "type":{"const":"chain"},
-                "from":{"$ref": "#"},
-                "place":{
-                    "type":"array",
-                    "items": {
+        "requests": {
+            "type":"array",
+            "items": {
+                "oneOf": [
+                    {
                         "type":"object",
                         "properties": {
-                            "from":{
-                                "type":"object",
-                                "properties": {
-                                    "header":{"type":"string", "$comment": "header key"},
-                                    "body":{"type":"string", "$comment": "path in json body"},
-                                    "store":{"type":"string"}
-                                }
-                            },
-                            "into":{
-                                "type":"object",
-                                "properties": {
-                                    "header":{"type":"string", "$comment": "header key"},
-                                    "body":{"type":"string", "$comment": "path in json body"},
-                                    "url":{"const":true},
-                                    "store":{"type":"string"}
-                                }
-                            }
+                            "uri":{"type":"string"},
+                            "type":{"const":"proxy"},
+                            "service":{"type":"string"}
+                        }
+                    },
+                    {
+                        "type":"object",
+                        "properties": {
+                            "uri":{"type":"string"},
+                            "type":{"const":"static"},
+                            "path":{"type":"string"}
                         }
                     }
-                },
-                "to":{
-                    "$ref": "#"
-                },
-                "uri":{"type":"string"}
-            },
-            "required": ["type", "from", "into", "place"]
-        }
-    ],
-    "definitions": {
-        "service":{
-            "type":"object",
-            "properties": {
-                "name":{"type":"string"},
-                "server":{"type":"string"},
-                "port":{"type":"number"},
-                "use":{
-                    "type":"array",
-                    "items": {
-                        "enum": [
-                            "body",
-                            "headers",
-                            "url"
-                        ]
-                    }
-                },
-                "set":{
-                    "type":"object",
-                    "properties": {
-                        "body":{"type":["string", "object", "array"]},
-                        "headers":{"type":"object"},
-                        "url":{"type":"string"}
-                    },
-                    "additionalProperties": false
-                },
-                "run":{
-                    "properties": {
-                        "image":{ "type":"string" }
-                    }
-                }
-            },
-            "required": ["server", "port"],
-            "additionalProperties": false
+                ]
+            }
         }
     }
 }
