@@ -35,15 +35,3 @@ pub fn run_async_server(global: Arc<Mutex<GlobalState>>, tree: Arc<Mutex<Node>>)
     }
 }
 
-pub fn run_server(global: &GlobalState, tree: &Node) {
-    if let Some(exposed) = &global.exposed {
-        let server = TcpListener::bind(&exposed.stringify()).unwrap();
-        loop {
-            match server.accept() {
-                Ok((stream, _addr)) => handle_request(stream, global, tree),
-                Err(_) => println!("Error")
-            };
-        }
-    }
-}
-

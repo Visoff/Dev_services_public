@@ -2,6 +2,24 @@ use std::fs;
 
 use crate::structs::{data::{Component, GlobalState}, http::{Request, Response, merge_paths}};
 
+use std::collections::HashMap;
+use libloading::{Library, Symbol};
+
+pub struct ImportedComponents {
+    pub components: HashMap<String, Box<dyn Component>>
+}
+
+impl ImportedComponents {
+    pub fn import_component(&mut self, library_path: &str) {
+        unsafe {
+            let library = Library::new(library_path).unwrap();
+            let func: Symbol<fn() -> (String, Box<dyn Component>)> = library.get(b"export_component").unwrap();
+            let (name, component) = func();
+            self.components.insert(name, component);
+        }
+    }
+}
+
 pub struct ProxyComponent {
     pub service: String
 }
