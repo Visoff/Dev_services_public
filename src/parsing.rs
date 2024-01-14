@@ -89,19 +89,23 @@ pub fn parse_component(val:serde_json::Value) -> Result<Box<dyn Component>, Stri
     };
 }
 
-pub fn parse_config(file_path: String) -> Result<(Node, GlobalState), String> {
-    let config = fs::read_to_string(&file_path);
+pub fn parse_config(file_path: &str) -> Result<(Node, GlobalState), String> {
+    let config = fs::read_to_string(file_path);
     let config = match config {
         Ok(config) => config,
         Err(_) => {
             return Err(format!("File {} does not exist", file_path));
         }
     };
+    parse_raw_config(config)
+}
+
+pub fn parse_raw_config(config: String) -> Result<(Node, GlobalState), String> {
     let config: Result<serde_json::Value, serde_json::Error> = serde_json::from_str(&config);
     let config = match config {
         Ok(config) => config,
         Err(_) => {
-            return Err(format!("File {} does not seem to be json formated", file_path));
+            return Err(format!("File does not seem to be json formated"));
         }
     };
     

@@ -36,8 +36,6 @@ pub struct GlobalState {
     pub exposed: Option<Exposed>
 }
 
-unsafe impl Send for GlobalState {}
-
 pub struct Service {
     host: String,
     port: i64

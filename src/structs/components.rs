@@ -10,6 +10,10 @@ pub struct ImportedComponents {
 }
 
 impl ImportedComponents {
+    pub fn init() -> Self {
+        return ImportedComponents { components: HashMap::new() };
+    }
+
     pub fn import_component(&mut self, library_path: &str) {
         unsafe {
             let library = Library::new(library_path).unwrap();
