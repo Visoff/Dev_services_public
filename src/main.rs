@@ -2,6 +2,7 @@ mod parsing;
 mod http;
 mod structs;
 mod runtime;
+mod networking;
 
 use structs::data::{GlobalState, Node};
 use std::{thread, sync::{Mutex, Arc}};

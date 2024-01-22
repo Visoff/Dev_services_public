@@ -1,6 +1,6 @@
 use std::{sync::{Arc, Mutex}, net::TcpListener, io::{BufReader, BufRead, Read, stdin}, thread};
 
-use crate::{structs::data::{Node, GlobalState}, parsing::{parse_raw_config, parse_config}};
+use crate::{networking::{Network, NetworkNode}, structs::data::{Node, GlobalState}, parsing::{parse_raw_config, parse_config}};
 
 
 fn listen_for_std(tree: Arc<Mutex<Node>>, global: Arc<Mutex<GlobalState>>) {
@@ -64,12 +64,6 @@ fn listen_for_tcp(port: u16, tree: Arc<Mutex<Node>>, global: Arc<Mutex<GlobalSta
 }
 
 pub fn setup(tree: Arc<Mutex<Node>>, global: Arc<Mutex<GlobalState>>) {
-    {
-        let tree = Arc::clone(&tree);
-        let global = Arc::clone(&global);
-        thread::spawn(move || {
-            listen_for_tcp(1702, tree, global)
-        });
-    }
-    listen_for_std(tree, global);
+    let mut net = Network::new();
+    net.listen();
 }
