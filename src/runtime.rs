@@ -1,6 +1,8 @@
-use std::{sync::{Arc, Mutex}, net::TcpListener, io::{BufReader, BufRead, Read, stdin}, thread};
+use std::{sync::{Arc, Mutex}, net::TcpListener, io::{BufReader, BufRead, Read, stdin}};
 
-use crate::{networking::{Network, NetworkNode}, structs::data::{Node, GlobalState}, parsing::{parse_raw_config, parse_config}};
+use clap::ArgMatches;
+
+use crate::{networking::Network, structs::data::{Node, GlobalState}, parsing::{parse_raw_config, parse_config}};
 
 
 fn listen_for_std(tree: Arc<Mutex<Node>>, global: Arc<Mutex<GlobalState>>) {
@@ -63,7 +65,13 @@ fn listen_for_tcp(port: u16, tree: Arc<Mutex<Node>>, global: Arc<Mutex<GlobalSta
     }
 }
 
-pub fn setup(tree: Arc<Mutex<Node>>, global: Arc<Mutex<GlobalState>>) {
-    let mut net = Network::new();
+pub fn setup(tree: Arc<Mutex<Node>>, global: Arc<Mutex<GlobalState>>, m: &ArgMatches) {
+    let default_port = "1702".to_string();
+    let port = m.get_one::<String>("port").unwrap_or(&default_port);
+    let mut net = Network::new("127.0.0.1".to_string(), port.to_string());
+    if let Some(network) = m.get_one::<String>("network") {
+        let (ip, port) = network.split_once(":").unwrap();
+        net.connect(ip.to_string(), port.to_string());
+    }
     net.listen();
 }

@@ -75,7 +75,7 @@ impl Message {
         message
     }
 
-    pub fn send(&self, receiver: &NetworkNode) {
+    pub fn send(&self, receiver: NetworkNode) {
         let mut stream = TcpStream::connect(format!("{}:{}", receiver.ip, receiver.port)).unwrap();
         stream.write(self.as_string().as_bytes());
     }
@@ -126,52 +126,20 @@ impl Network {
         
     }
 
-    pub fn shout(&self, message: Message) {
-        self.nodes.iter().for_each(|(_, node)| {
-            message.send(node);
-        });
-    }
-
     pub fn request(&mut self, stream: TcpStream) {
         let message = Message::parse(&stream);
         match message.method.as_str() {
             "connect" => {
                 println!("Connection request");
-                let ip = message.params.get("ip").unwrap();
-                let port = message.params.get("port").unwrap();
-                let new_node = NetworkNode { ip: ip.to_string(), port: port.to_string() };
-                Message::build(
-                    self.my_id.to_string(),
-                    "add_members".to_string(),
-                    HashMap::new(),
-                    self.nodes.iter()
-                        .map(|(id, node)| format!("{} {}:{}", id, node.ip, node.port).to_string())
-                        .collect::<Vec<String>>()
-                        .join("\n")
-                ).send(&new_node);
-                let mut params: HashMap<String, String> = HashMap::new();
-                params.insert("ip".to_string(), ip.to_string());
-                params.insert("port".to_string(), port.to_string());
-                params.insert("name".to_string(), message.from.to_string());
-                let shout_message = Message::build(self.my_id.to_string(), "add_member".to_string(), params, "".to_string());
-                self.shout(shout_message);
-                self.nodes.insert(message.from.to_string(), new_node);
-                println!("{:?}", self.nodes);
+                let params: HashMap<String, String> = HashMap::new();
+                params.insert("ip", message.params.get("ip").unwrap());
+                let shout_message = Message::build(self.my_id, "add_member".to_string(), params, "".to_string());
             },
             "add_member" => {
                 let ip = message.params.get("ip").unwrap().to_string();
                 let port = message.params.get("port").unwrap().to_string();
                 let name = message.params.get("name").unwrap().to_string();
                 self.nodes.insert(name, NetworkNode{ ip, port });
-                println!("Added member! New nodes:\n{:?}", self.nodes);
-            },
-            "add_members" => {
-                message.content.split("\n").for_each(|line| {
-                    let (name, data) = line.split_once(" ").unwrap();
-                    let (ip, port) = data.split_once(":").unwrap();
-                    self.nodes.insert(name.to_string(), NetworkNode{ ip: ip.to_string(), port: port.to_string() });
-                });
-                println!("Added members! Neo nodes:\n{:?}", self.nodes);
             },
             "approve_transaction" => {
                 println!("Approve transaction requested from {}", message.from);
