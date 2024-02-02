@@ -1,6 +1,7 @@
 use std::{collections::HashMap, net::{TcpListener, TcpStream}, io::{BufReader, BufRead, Write, Read}};
 
 
+#[derive(Clone)]
 pub struct Message {
     id: String,
     from: String,
@@ -47,7 +48,7 @@ impl Message {
             params.insert(name.to_string(), value.to_string());
         }
         let mut content = String::new();
-        reader.take(content_length as u64).read_to_string(&mut content);
+        reader.take(content_length as u64).read_to_string(&mut content).unwrap();
         return Message {
             id: id.to_string(),
             from: from.to_string(),
@@ -77,13 +78,50 @@ impl Message {
 
     pub fn send(&self, receiver: &NetworkNode) {
         let mut stream = TcpStream::connect(format!("{}:{}", receiver.ip, receiver.port)).unwrap();
-        stream.write(self.as_string().as_bytes());
+        stream.write(self.as_string().as_bytes()).unwrap();
+    }
+
+    pub fn is_transaction(&self) -> bool {
+        self.params.get("transaction_id").is_some()
+    }
+
+    pub fn build_transaction(&self, net: &Network) -> Transaction {
+        Transaction::new(self.clone(), net.nodes.keys().cloned().collect())
+    }
+
+    pub fn build_transaction_approval(&self, from: String) -> Message {
+        let mut params = HashMap::new();
+        params.insert("transaction_id".to_string(), self.params.get("transaction_id").unwrap().to_string());
+        Message::build(from, "approve_transaction".to_string(), params, "".to_string())
     }
 }
 
 pub struct Transaction {
     message: Message,
     aproved: HashMap<String, bool>
+}
+
+impl Transaction {
+    pub fn new(message: Message, nodes: Vec<String>) -> Transaction {
+        Transaction {
+            message,
+            aproved: nodes.iter().map(|n| (n.to_string(), false)).collect()
+        }
+    }
+
+    pub fn get_message(&self) -> &Message {
+        &self.message
+    }
+
+    pub fn is_approved(&self) -> bool {
+        self.aproved.values().all(|v| *v)
+    }
+
+    pub fn send_for_approval(&self, net: &Network) {
+        for (id, _) in &self.aproved {
+            self.message.build_transaction_approval(id.to_string()).send(&net.nodes.get(id).unwrap());
+        }
+    }
 }
 
 pub struct Network {
@@ -175,6 +213,9 @@ impl Network {
             },
             "approve_transaction" => {
                 println!("Approve transaction requested from {}", message.from);
+                if !message.is_transaction() {
+                    return;
+                }
             },
             &_ => {
                 println!("Unknown method: {}", message.method);
