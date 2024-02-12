@@ -35,3 +35,4 @@ pub fn setup(tree: Arc<Mutex<Node>>, global: Arc<Mutex<GlobalState>>, m: &ArgMat
     };
     listen_for_std(Arc::clone(&tree), Arc::clone(&global));
 }
+

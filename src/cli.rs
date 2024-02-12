@@ -11,9 +11,9 @@ pub fn parse_cli() -> ArgMatches {
             .long("network")
         )
         .arg(
-            Arg::new("config")
-            .short('c')
-            .long("config")
+            Arg::new("file")
+            .short('f')
+            .long("file")
         )
         .arg(
             Arg::new("port")

@@ -28,7 +28,7 @@ fn main() {
 
     let m = parse_cli();
 
-    let file_name = m.get_one::<String>("config").unwrap_or(&"setup.json".to_string()).to_string();
+    let file_name = m.get_one::<String>("file").unwrap_or(&"setup.json".to_string()).to_string();
     
     let (tree, global) = parse_into_arc_mutex(&file_name);
     {

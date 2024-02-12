@@ -1,6 +1,6 @@
 use std::fs;
 
-use crate::structs::{data::{Component, GlobalState}, http::{Request, Response, merge_paths}};
+use crate::structs::{data::{Component, GlobalState}, http::{Request, Response, merge_paths, path_exists}};
 
 use std::collections::HashMap;
 use libloading::{Library, Symbol};
@@ -29,7 +29,8 @@ pub struct ProxyComponent {
 }
 
 pub struct StaticComponent {
-    pub path: String
+    pub path: String,
+    pub index: String
 }
 
 impl Component for ProxyComponent {
@@ -54,19 +55,36 @@ impl Component for ProxyComponent {
     }
 }
 
+impl StaticComponent {
+    pub fn respond(path: &str) -> Response {
+        let mut res = Response::new();
+        let mime_type = mime_guess::from_path(&path).first_or_octet_stream();
+        let file = fs::read_to_string(&path).unwrap();
+        res.headers.insert("Content-Type".to_string(), mime_type.to_string());
+        res.body = file;
+        return res;
+    }
+}
+
 impl Component for StaticComponent {
     fn parse(val:serde_json::Value) -> Self where Self: Sized {
-        if let Some(path) = val.get("path") {
-            return StaticComponent { path: path.as_str().unwrap().to_string() }
+        let mut path = "".to_string();
+        let mut index = "index.html".to_string();
+        if let Some(parse_path) = val.get("path") {
+            path = parse_path.as_str().unwrap().to_string();
         }
-        return StaticComponent { path: "".to_string() };
+        if let Some(parse_index) = val.get("index") {
+            index = parse_index.as_str().unwrap().to_string();
+        }
+        return StaticComponent { path, index };
     }
     fn call(&self, _global: &GlobalState, req: Request) -> Response {
-        if let Ok(file) = fs::read_to_string(merge_paths(self.path.to_owned(), req.uri)) {
-            let mut res = Response::new();
-            res.body = file;
-            return res;
-        } else {
+        let path = merge_paths(&self.path, &req.uri);
+        if path_exists(&path) {
+            return StaticComponent::respond(&path);
+        } else if path_exists(&merge_paths(&path, &self.index)) {
+            return StaticComponent::respond(&merge_paths(&path, &self.index));
+        } {
             return Response::not_found();
         }
 

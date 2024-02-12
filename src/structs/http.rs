@@ -1,5 +1,11 @@
 use std::{net::TcpStream, collections::HashMap, io::{BufReader, prelude::*}};
 
+use std::path::Path;
+
+pub fn path_exists(path: &str) -> bool {
+    let p = Path::new(path);
+    return p.exists() && p.is_file();
+}
 
 pub fn split_path(path:String) -> Vec<String> {
     return path
@@ -9,7 +15,7 @@ pub fn split_path(path:String) -> Vec<String> {
         .collect::<Vec<String>>();
 }
 
-pub fn merge_paths(a: String, b:String) -> String {
+pub fn merge_paths(a: &str, b: &str) -> String {
     let mut res: Vec<String> = Vec::new();
     a.split("/").filter(|el| !el.is_empty()).for_each(|el| {
         res.push(el.to_string());
@@ -33,7 +39,10 @@ impl Request {
 
         let mut buf = BufReader::new(&mut stream);
         let mut data: String = String::new();
-        buf.read_line(&mut data).unwrap();
+        match buf.read_line(&mut data) {
+            Ok(_) => (),
+            Err(_) => return None
+        };
 
         if data.trim().is_empty() {
             return None;
