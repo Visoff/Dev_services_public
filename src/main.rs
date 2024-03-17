@@ -28,9 +28,15 @@ fn main() {
 
     let m = parse_cli();
 
-    let file_name = m.get_one::<String>("file").unwrap_or(&"setup.json".to_string()).to_string();
+    let file_name = m.get_one::<String>("file");
     
-    let (tree, global) = parse_into_arc_mutex(&file_name);
+    let (mut tree, mut global) = (
+        Arc::new(Mutex::new(Node::new())),
+        Arc::new(Mutex::new(GlobalState::blank()))
+    );
+    if let Some(file_name) = file_name {
+        (tree, global) = parse_into_arc_mutex(&file_name);
+    }
     {
         let tree = Arc::clone(&tree);
         let global = Arc::clone(&global);

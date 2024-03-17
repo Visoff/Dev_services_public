@@ -16,6 +16,7 @@ features = [
 [dependencies]
 clap = "4.4.18"
 libloading = "0.8.1"
+mime_guess = "2.0.4"
 regex = "1.5"
 serde = { version = "1", features = ["derive"] }
 serde_json = {version="1.0.99"}

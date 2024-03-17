@@ -44,7 +44,7 @@ pub fn parse_request(comp:serde_json::Value, global:&GlobalState) -> Result<(Str
             return Err("Name must be string".to_string());
         }
     }
-    return Ok((uri, parse_component(comp)?));
+    return Ok((uri, global_parse(comp)));
 }
 
 pub fn parse_services(services:&mut HashMap<String, Service>, val:serde_json::Value) -> Result<(), String> {
@@ -70,23 +70,6 @@ pub fn parse_service(val:serde_json::Value) -> Result<(String, Service), String>
         None => Uuid::new_v4().to_string()
     };
     return Ok((name, Service::from_val(val)?));
-}
-
-pub fn parse_component(val:serde_json::Value) -> Result<Box<dyn Component>, String> {
-    let component = match val.as_object() {
-        Some(component) => component,
-        None => return Err("Каждый компонент долен быть обьектом".to_string())
-    };
-    let component_type = match component.get("type") {
-        Some(component_type) => component_type.as_str().unwrap(),
-        None => return Err("В компоненте не найден type".to_string())
-    };
-    
-    return match component_type {
-        "static" => Ok(Box::new(StaticComponent::parse(val))),
-        "proxy" => Ok(Box::new(ProxyComponent::parse(val))),
-        &_ => Err("Invalid component type".to_string())
-    };
 }
 
 pub fn parse_config(file_path: &str) -> Result<(Node, GlobalState), String> {

@@ -1,4 +1,4 @@
-use crate::structs::{data::{Node, GlobalState}, http::{Request, Response}};
+use crate::structs::{data::{Node, GlobalState, get_ro_from_mutex}, http::{Request, Response}};
 
 use std::{io::prelude::*, net::{TcpListener, TcpStream}, sync::{Arc, Mutex}, thread};
 
@@ -7,7 +7,10 @@ pub fn handle_request(mut stream:TcpStream, global: &GlobalState, tree: &Node) {
         let (node, remained_uri) = tree.search(req.uri);
         req.uri = remained_uri;
         let res = match node.value.as_ref() {
-            Some(component) => component.call(global, req),
+            Some(component) => {
+                let global_clone = (*global).clone();
+                component.call(&global_clone, req)
+            },
             None => Response::not_found()
         };
         stream.write_all(res.into_string().as_bytes()).unwrap();
@@ -26,7 +29,9 @@ pub fn run_async_server(global: Arc<Mutex<GlobalState>>, tree: Arc<Mutex<Node>>)
             thread::spawn(move || {
                 match stream {
                     Ok(stream) => {
-                        handle_request(stream, &global.lock().unwrap(), &tree.lock().unwrap());
+                        let global_guard = get_ro_from_mutex(&global).unwrap();
+                        let tree_guard = get_ro_from_mutex(&tree).unwrap();
+                        handle_request(stream, &global_guard, &tree_guard);
                     },
                     Err(_) => println!("Error")
                 };

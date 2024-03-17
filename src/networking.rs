@@ -1,19 +1,18 @@
-use std::{collections::HashMap, net::{TcpListener, TcpStream}, io::{BufReader, BufRead, Write, Read}};
+use std::{time::Duration, thread::sleep, sync::{Arc, Mutex}, collections::HashMap, net::{TcpListener, TcpStream}, io::{BufReader, BufRead, Write, Read}};
 
+use crate::structs::data::{Node, GlobalState};
 
 #[derive(Clone)]
 pub struct Message {
-    id: String,
-    from: String,
-    method: String,
-    params: HashMap<String, String>,
-    content: String
+    pub from: String,
+    pub method: String,
+    pub params: HashMap<String, String>,
+    pub content: String
 }
 
 impl Message {
     pub fn build(from: String, method: String, params: HashMap<String, String>, content: String) -> Self {
         Message {
-            id: uuid::Uuid::new_v4().to_string(),
             from,
             method,
             params,
@@ -27,7 +26,6 @@ impl Message {
 
         reader.read_line(&mut buffer).unwrap();
         let mut data_line = buffer.split_whitespace();
-        let id = data_line.next().unwrap();
         let from = data_line.next().unwrap();
         let method = data_line.next().unwrap();
         
@@ -50,7 +48,6 @@ impl Message {
         let mut content = String::new();
         reader.take(content_length as u64).read_to_string(&mut content).unwrap();
         return Message {
-            id: id.to_string(),
             from: from.to_string(),
             method: method.to_string(),
             params,
@@ -59,75 +56,32 @@ impl Message {
     }
 
     pub fn as_string(&self) -> String {
-        let mut message = String::new();
-        message.push_str(&self.id);
-        message.push_str(" ");
-        message.push_str(&self.from);
-        message.push_str(" ");
-        message.push_str(&self.method);
-        for (k, v) in &self.params {
-            message.push_str("\r\n");
-            message.push_str(&format!("{}: {}", k, v));
-        }
-        message.push_str("\r\n");
-        message.push_str(&format!("Content-Length: {}", self.content.len()));
-        message.push_str("\r\n\r\n");
-        message.push_str(&self.content);
-        message
+        format!(
+            "{} {}\r\n{}\r\n\r\n{}",
+            self.from,
+            self.method,
+            {
+                let mut new_map = self.params.clone();
+                new_map.insert("Content-Length".to_string(), self.content.len().to_string());
+                new_map.iter()
+                    .map(|(k,  v)| format!("{}: {}", k, v))
+                    .collect::<Vec<String>>()
+                    .join("\r\n")
+            },
+            self.content
+        )
     }
 
     pub fn send(&self, receiver: &NetworkNode) {
         let mut stream = TcpStream::connect(format!("{}:{}", receiver.ip, receiver.port)).unwrap();
         stream.write(self.as_string().as_bytes()).unwrap();
     }
-
-    pub fn is_transaction(&self) -> bool {
-        self.params.get("transaction_id").is_some()
-    }
-
-    pub fn build_transaction(&self, net: &Network) -> Transaction {
-        Transaction::new(self.clone(), net.nodes.keys().cloned().collect())
-    }
-
-    pub fn build_transaction_approval(&self, from: String) -> Message {
-        let mut params = HashMap::new();
-        params.insert("transaction_id".to_string(), self.params.get("transaction_id").unwrap().to_string());
-        Message::build(from, "approve_transaction".to_string(), params, "".to_string())
-    }
-}
-
-pub struct Transaction {
-    message: Message,
-    aproved: HashMap<String, bool>
-}
-
-impl Transaction {
-    pub fn new(message: Message, nodes: Vec<String>) -> Transaction {
-        Transaction {
-            message,
-            aproved: nodes.iter().map(|n| (n.to_string(), false)).collect()
-        }
-    }
-
-    pub fn get_message(&self) -> &Message {
-        &self.message
-    }
-
-    pub fn is_approved(&self) -> bool {
-        self.aproved.values().all(|v| *v)
-    }
-
-    pub fn send_for_approval(&self, net: &Network) {
-        for (id, _) in &self.aproved {
-            self.message.build_transaction_approval(id.to_string()).send(&net.nodes.get(id).unwrap());
-        }
-    }
 }
 
 pub struct Network {
-    call_stack: HashMap<String, Transaction>,
     nodes: HashMap<String, NetworkNode>,
-    my_id: String
+    my_id: String,
+    handlers: HashMap<String, fn(Message, Arc<Mutex<Node>>, Arc<Mutex<GlobalState>>)>
 }
 
 #[derive(Debug)]
@@ -139,9 +93,9 @@ pub struct NetworkNode {
 impl Network {
     pub fn new(ip: String, port: String) -> Network {
         let mut network = Network {
-            call_stack: HashMap::new(),
             nodes: HashMap::new(),
-            my_id: uuid::Uuid::new_v4().to_string()
+            my_id: uuid::Uuid::new_v4().to_string(),
+            handlers: HashMap::new()
         };
         network.nodes.insert(network.my_id.to_string(), NetworkNode { ip, port });
         network
@@ -153,15 +107,19 @@ impl Network {
 
     pub fn connect(&mut self, ip: String, port: String) {
         let my_node = self.get_my_node();
+        println!("Connecting to {}:{}...", ip, port);
         let mut stream = TcpStream::connect(format!("{}:{}", ip, port)).unwrap();
         stream.write(
-            format!("{} {} connect\r\nip: {}\r\nport: {}\r\n\r\n",
-                    uuid::Uuid::new_v4().to_string(),
+            format!("{} connect\r\nip: {}\r\nport: {}\r\n\r\n",
                     self.my_id,
                     my_node.ip,
                     my_node.port
                 ).as_bytes()).unwrap();
         
+    }
+
+    pub fn add_handler(&mut self, method: String, handler: fn(Message, Arc<Mutex<Node>>, Arc<Mutex<GlobalState>>)) {
+        self.handlers.insert(method, handler);
     }
 
     pub fn shout(&self, message: Message) {
@@ -170,11 +128,12 @@ impl Network {
         });
     }
 
-    pub fn request(&mut self, stream: TcpStream) {
+    pub fn request(&mut self, stream: TcpStream, tree: Arc<Mutex<Node>>, global: Arc<Mutex<GlobalState>>) {
         let message = Message::parse(&stream);
         match message.method.as_str() {
             "connect" => {
-                println!("Connection request");
+                println!("{}", stream.peer_addr().unwrap().ip());
+                sleep(Duration::from_secs(1));
                 let ip = message.params.get("ip").unwrap();
                 let port = message.params.get("port").unwrap();
                 let new_node = NetworkNode { ip: ip.to_string(), port: port.to_string() };
@@ -194,14 +153,13 @@ impl Network {
                 let shout_message = Message::build(self.my_id.to_string(), "add_member".to_string(), params, "".to_string());
                 self.shout(shout_message);
                 self.nodes.insert(message.from.to_string(), new_node);
-                println!("{:?}", self.nodes);
             },
             "add_member" => {
                 let ip = message.params.get("ip").unwrap().to_string();
                 let port = message.params.get("port").unwrap().to_string();
                 let name = message.params.get("name").unwrap().to_string();
                 self.nodes.insert(name, NetworkNode{ ip, port });
-                println!("Added member! New nodes:\n{:?}", self.nodes);
+                println!("Added nodes\r\nnew once: {:?}", self.nodes);
             },
             "add_members" => {
                 message.content.split("\n").for_each(|line| {
@@ -209,25 +167,33 @@ impl Network {
                     let (ip, port) = data.split_once(":").unwrap();
                     self.nodes.insert(name.to_string(), NetworkNode{ ip: ip.to_string(), port: port.to_string() });
                 });
-                println!("Added members! Neo nodes:\n{:?}", self.nodes);
+                println!("Added nodes\r\nnew once: {:?}", self.nodes);
             },
-            "approve_transaction" => {
-                println!("Approve transaction requested from {}", message.from);
-                if !message.is_transaction() {
-                    return;
-                }
+            "message" => {
+                let content = message.content.to_string();
+                self.shout(Message::build(self.my_id.to_string(), "display".to_string(), HashMap::new(), content.to_string()));
             },
             &_ => {
-                println!("Unknown method: {}", message.method);
+                if self.handlers.contains_key(&message.method) {
+                    let handler = self.handlers.get(&message.method).unwrap();
+                    handler(
+                        message,
+                        tree,
+                        global
+                    );
+                } else {
+                    println!("Unknown method: {}", message.method);
+                }
             }
         }
     }
 
-    pub fn listen(&mut self) {
+    pub fn listen(&mut self, tree: Arc<Mutex<Node>>, global: Arc<Mutex<GlobalState>>) {
         let my_node = self.get_my_node();
         let server = TcpListener::bind(format!("{}:{}", my_node.ip, my_node.port)).unwrap();
+        println!("Listening on {}", server.local_addr().unwrap());
         for stream in server.incoming() {
-            self.request(stream.unwrap());
+            self.request(stream.unwrap(), Arc::clone(&tree), Arc::clone(&global));
         }
     }
 }

@@ -1,38 +1,27 @@
-use std::{thread, sync::{Arc, Mutex}, io::{BufRead, stdin}};
+use std::{thread, sync::{Arc, Mutex}};
 
 use clap::ArgMatches;
 
-use crate::{networking::Network, structs::data::{Node, GlobalState}, parsing::parse_config};
-
-fn listen_for_std(tree: Arc<Mutex<Node>>, global: Arc<Mutex<GlobalState>>) {
-    let filename = "setup.json";
-    let stdobj = stdin();
-    for line in stdobj.lock().lines() {
-        let line = line.unwrap();
-        if line.starts_with("restart") {
-            match parse_config(filename) {
-                Ok((t, g)) => {
-                    *tree.lock().unwrap() = t;
-                    *global.lock().unwrap() = g;
-                },
-                Err(err) => panic!("{}", err)
-            };
-            println!("Restarted ✔");
-        }
-    }
-}
+use crate::{networking::Network, structs::data::{Node, GlobalState}};
 
 pub fn setup(tree: Arc<Mutex<Node>>, global: Arc<Mutex<GlobalState>>, m: &ArgMatches) {
     if let Some(port) = m.get_one::<String>("port") {
-        let mut net = Network::new("127.0.0.1".to_string(), port.to_string());
+        let default_ip = "127.0.0.1".to_string();
+        let ip = m.get_one::<String>("ip").unwrap_or(&default_ip);
+        let mut net = Network::new(ip.to_string(), port.to_string());
         if let Some(network) = m.get_one::<String>("network") {
             let (ip, port) = network.split_once(":").unwrap();
             net.connect(ip.to_string(), port.to_string());
         };
+        net.add_handler("display".to_string(), |message, _, _| {
+            println!("{}", message.content);
+        });
+        let tree = Arc::clone(&tree);
+        let global = Arc::clone(&global);
         thread::spawn(move || {
-            net.listen();
+            net.listen(tree, global);
         });
     };
-    listen_for_std(Arc::clone(&tree), Arc::clone(&global));
+    loop {}
 }
 

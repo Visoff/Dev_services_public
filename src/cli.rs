@@ -16,6 +16,10 @@ pub fn parse_cli() -> ArgMatches {
             .long("file")
         )
         .arg(
+            Arg::new("ip")
+            .long("ip")
+        )
+        .arg(
             Arg::new("port")
             .short('p')
             .long("port")

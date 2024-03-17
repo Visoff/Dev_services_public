@@ -2,35 +2,20 @@ use std::fs;
 
 use crate::structs::{data::{Component, GlobalState}, http::{Request, Response, merge_paths, path_exists}};
 
-use std::collections::HashMap;
-use libloading::{Library, Symbol};
+pub fn global_parse(val:serde_json::Value) -> Box<dyn Component> {
+    let component = val.as_object().unwrap();
+    let component_type = component.get("type").unwrap().as_str().unwrap();
 
-pub struct ImportedComponents {
-    pub components: HashMap<String, Box<dyn Component>>
-}
-
-impl ImportedComponents {
-    pub fn init() -> Self {
-        return ImportedComponents { components: HashMap::new() };
-    }
-
-    pub fn import_component(&mut self, library_path: &str) {
-        unsafe {
-            let library = Library::new(library_path).unwrap();
-            let func: Symbol<fn() -> (String, Box<dyn Component>)> = library.get(b"export_component").unwrap();
-            let (name, component) = func();
-            self.components.insert(name, component);
-        }
+    match component_type {
+        "proxy" => Box::new(ProxyComponent::parse(val)),
+        "static" => Box::new(StaticComponent::parse(val)),
+        _ => panic!("Unknown component type")
     }
 }
 
+#[derive(Clone)]
 pub struct ProxyComponent {
     pub service: String
-}
-
-pub struct StaticComponent {
-    pub path: String,
-    pub index: String
 }
 
 impl Component for ProxyComponent {
@@ -53,6 +38,12 @@ impl Component for ProxyComponent {
             None => Response::not_found()
         }
     }
+}
+
+#[derive(Clone)]
+pub struct StaticComponent {
+    pub path: String,
+    pub index: String
 }
 
 impl StaticComponent {
@@ -90,5 +81,4 @@ impl Component for StaticComponent {
 
     }
 }
-
 

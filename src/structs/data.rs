@@ -1,7 +1,17 @@
+use std::sync::{Arc, Mutex};
 use std::{collections::HashMap, net::TcpStream, io::prelude::*};
 
 use crate::structs::http::{Request, Response, split_path};
 
+pub fn get_ro_from_mutex<T: Clone>(m: &Arc<Mutex<T>>) -> Option<T> {
+    if let Ok(data) = m.lock() {
+        return Some(data.clone());
+    } else {
+        return None;
+    }
+}
+
+#[derive(Clone)]
 pub struct Exposed {
     pub host: String,
     pub port: i64
@@ -31,11 +41,19 @@ impl Exposed {
     }
 }
 
+#[derive(Clone)]
 pub struct GlobalState {
     pub services: HashMap<String, Service>,
     pub exposed: Option<Exposed>
 }
 
+impl GlobalState {
+    pub fn blank() -> Self {
+        return GlobalState { services: HashMap::new(), exposed: None }
+    }
+}
+
+#[derive(Clone)]
 pub struct Service {
     host: String,
     port: i64
@@ -84,11 +102,30 @@ impl GlobalState {
     }
 }
 
-pub trait Component {
+pub trait CloneComponent {
+    fn clone_box(&self) -> Box<dyn Component>;
+}
+impl<T> CloneComponent for T
+where
+    T: 'static + Component + Clone
+{
+    fn clone_box(&self) -> Box<dyn Component> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn Component> {
+    fn clone(&self) -> Box<dyn Component> {
+        self.clone_box()
+    }
+}
+
+pub trait Component: CloneComponent {
     fn call(&self, global: &GlobalState, req: Request) -> Response;
     fn parse(val:serde_json::Value) -> Self where Self: Sized;
 }
 
+#[derive(Clone)]
 pub struct Node {
     pub next: HashMap<String, Node>,
     pub value: Option<Box<dyn Component>>
